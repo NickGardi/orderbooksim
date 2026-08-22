@@ -1,6 +1,6 @@
 # orderbooksim
 
-Price-time priority limit order book. Matching engine is plain Python; Streamlit is just the UI.
+Price-time priority limit order book. Matching is plain Python; Streamlit is just the UI.
 
 Live: https://nickgardi-orderbooksim-app-m4vk2z.streamlit.app/
 
@@ -17,29 +17,12 @@ streamlit run app.py
 pytest
 ```
 
-## Architecture
+## How it's put together
 
-| File | What it does |
-|------|----------------|
-| `matching_engine.py` | Core matcher — no Streamlit imports |
-| `models.py` | `Order`, `Trade`, `Side`, book snapshot types |
-| `app.py` | Streamlit UI (book, charts, order form, live sim) |
-| `tests/` | Engine tests (crossing, partials, FIFO, cancel, empty book) |
+`matching_engine.py` does the real work and doesn't import Streamlit. `models.py` has Order/Trade/etc. `app.py` is the front end — book, charts, order form, live sim. Tests live under `tests/`.
 
-The UI keeps an engine instance in `st.session_state`. Nothing is persisted — refresh or **Reset** clears it.
+Book state sits in `st.session_state` for the session. Refresh or hit Reset and it's gone.
 
-### Matching
+Matching is price-time priority: better prices go first, and at the same price the earlier order fills first (FIFO). If an order crosses the book it walks levels until it's done or there's nothing left to hit. Partials are fine — whatever's left rests. Prints go through at the resting order's price.
 
-- **Price priority:** best bid = highest price, best ask = lowest price
-- **Time priority:** at the same price, earlier orders fill first (FIFO)
-- Incoming orders that cross the book walk levels until filled or no more liquidity
-- Partial fills are allowed; leftover quantity rests on the book
-- Trade price is the resting (maker) order’s limit
-
-### Data structures
-
-- `SortedDict` for price levels (bids keyed by `-price`, asks ascending)
-- `deque` per level so append = new order, popleft = oldest fill
-- Order id → (side, price) index for cancels
-
-That’s the usual continuous limit-order-book model exchanges use for limit orders.
+Under the hood price levels are a `SortedDict` (bids via `-price`, asks ascending) and each level is a `deque` so time priority is just append / popleft.
