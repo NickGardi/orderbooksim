@@ -17,11 +17,29 @@ streamlit run app.py
 pytest
 ```
 
-## Code
+## Architecture
 
-- `matching_engine.py` — submit / cancel / snapshot. Bids sorted high→low, asks low→high, FIFO within a price (`SortedDict` + `deque`). Fills at the resting order's price.
-- `models.py` — Order, Trade, etc.
-- `app.py` — charts, book view, manual orders, live sim
-- `tests/` — matching edge cases
+| File | What it does |
+|------|----------------|
+| `matching_engine.py` | Core matcher — no Streamlit imports |
+| `models.py` | `Order`, `Trade`, `Side`, book snapshot types |
+| `app.py` | Streamlit UI (book, charts, order form, live sim) |
+| `tests/` | Engine tests (crossing, partials, FIFO, cancel, empty book) |
 
-State lives in memory for the session. Sidebar has seed / live / reset.
+The UI keeps an engine instance in `st.session_state`. Nothing is persisted — refresh or **Reset** clears it.
+
+### Matching
+
+- **Price priority:** best bid = highest price, best ask = lowest price
+- **Time priority:** at the same price, earlier orders fill first (FIFO)
+- Incoming orders that cross the book walk levels until filled or no more liquidity
+- Partial fills are allowed; leftover quantity rests on the book
+- Trade price is the resting (maker) order’s limit
+
+### Data structures
+
+- `SortedDict` for price levels (bids keyed by `-price`, asks ascending)
+- `deque` per level so append = new order, popleft = oldest fill
+- Order id → (side, price) index for cancels
+
+That’s the usual continuous limit-order-book model exchanges use for limit orders.
